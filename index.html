@@ -166,11 +166,8 @@
     </div>
     <div class="field">
       <label for="qr-level">Correction d'erreur</label>
-      <select id="qr-level">
-        <option value="H">H — haute</option>
-        <option value="Q">Q — qualité</option>
-        <option value="M" selected>M — médium</option>
-        <option value="L">L — faible</option>
+      <select id="qr-level" disabled>
+        <option value="H" selected>H — haute (forcé pour le logo)</option>
       </select>
     </div>
   </div>
@@ -207,6 +204,8 @@
 
 <!-- Bibliothèque depuis ton repo GitHub via jsDelivr -->
 <script src="https://cdn.jsdelivr.net/gh/manucros31-dot/createQRCROSS@main/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/manucros31-dot/createQRCROSS@main/qrcross-logo.js"></script>
 <script>
   const txt   = document.getElementById('qr-text');
   const size  = document.getElementById('qr-size');
@@ -224,12 +223,8 @@
   const lbl   = document.getElementById('qr-label');
   const err   = document.getElementById('qr-error');
 
-  const levelMap = {
-    H: QRCode.CorrectLevel.H,
-    Q: QRCode.CorrectLevel.Q,
-    M: QRCode.CorrectLevel.M,
-    L: QRCode.CorrectLevel.L
-  };
+  // Le niveau de correction est toujours H : requis pour garder le QR
+  // lisible malgré le logo superposé (voir qrcross-logo.js).
 
   size.addEventListener('input', () => { sizeV.textContent = size.value; });
   dark.addEventListener('input', () => { darkH.textContent = dark.value; });
@@ -254,10 +249,31 @@
         height: parseInt(size.value),
         colorDark:  dark.value,
         colorLight: light.value,
-        correctLevel: levelMap[lvl.value]
+        correctLevel: QRCode.CorrectLevel.H // forcé : requis pour le logo
       });
+
+      // Overlay du logo QRCROSS, dessiné par-dessus le QR généré
+      // (n'altère jamais les modules du QR, uniquement le rendu final).
+      // La taille est vérifiée par un vrai test de décodage (jsQR) et
+      // réduite automatiquement si besoin pour garantir la lisibilité.
+      const canvas = cont.querySelector('canvas');
+      let logoWarning = false;
+      if (canvas) {
+        const result = applyQRCrossLogoSafely(canvas, text, { startRatio: 0.19, minRatio: 0.10 });
+        logoWarning = !result.success;
+        // La lib qrcodejs affiche un <img> (copie du canvas) plutôt que
+        // le canvas lui-même : on le régénère pour refléter le logo.
+        const img = cont.querySelector('img');
+        if (img) img.src = canvas.toDataURL('image/png');
+      }
+
       lbl.textContent = text.length > 60 ? text.slice(0, 60) + '…' : text;
       out.style.display = 'flex';
+
+      if (logoWarning) {
+        err.textContent = 'Texte très long : le logo a été réduit au minimum et la lecture du QR n\'est pas garantie. Utilisez un texte plus court (ex. URL raccourcie) pour un résultat fiable.';
+        err.style.display = 'block';
+      }
     } catch(e) {
       err.textContent = 'Erreur : ' + (e.message || 'texte trop long ou invalide.');
       err.style.display = 'block';
